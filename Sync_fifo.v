@@ -1,4 +1,4 @@
-module synchronous_fifo(clk,reset,write_enable,read_enable,trans_data,recv_data,fifo_full,fifo_empty);
+module Sync_fifo(clk,reset,write_enable,read_enable,trans_data,recv_data,fifo_full,fifo_empty);
 
 parameter address_bus_length = 4;
 parameter data_bus_length = 8;
