@@ -1,4 +1,4 @@
-module asynchronous_fifo(trans_clk,trans_rst,write_enable,recv_clk,recv_rst,read_enable,fifo_full,fifo_empty,trans_data,recv_data);
+module async_fifo(trans_clk,trans_rst,write_enable,recv_clk,recv_rst,read_enable,fifo_full,fifo_empty,trans_data,recv_data);
 
 parameter address_bus_length = 4;
 parameter data_bus_length = 8;
