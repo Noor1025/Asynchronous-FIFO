@@ -1,5 +1,5 @@
 `timescale 1ns/10ps
-module asynchronous_fifo_tb ();
+module Async_fifo_tb ();
 
 parameter address_bus_length = 4;
 parameter data_bus_length = 8;
