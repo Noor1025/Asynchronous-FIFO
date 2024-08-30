@@ -1,79 +1,81 @@
-module async_fifo(trans_clk,trans_rst,write_enable,recv_clk,recv_rst,read_enable,fifo_full,fifo_empty,trans_data,recv_data);
+module async_fifo(
+    tx_clk, tx_rst_n, wr_en, rx_clk, rx_rst_n, rd_en, fifo_full_o, fifo_empty_o, tx_data_i, rx_data_o
+);
 
-parameter address_bus_length = 4;
-parameter data_bus_length = 8;
-parameter fifo_depth = 2**address_bus_length;
+parameter ADDR_WIDTH = 4;
+parameter DATA_WIDTH = 8;
+parameter FIFO_DEPTH = 2**ADDR_WIDTH;
 
-input trans_clk,recv_clk,trans_rst,recv_rst;
-input write_enable,read_enable;
-input[data_bus_length-1:0] trans_data;
-output[data_bus_length-1:0] recv_data;
-output fifo_full,fifo_empty;
+input tx_clk, rx_clk, tx_rst_n, rx_rst_n;
+input wr_en, rd_en;
+input [DATA_WIDTH-1:0] tx_data_i;
+output [DATA_WIDTH-1:0] rx_data_o;
+output fifo_full_o, fifo_empty_o;
 
-reg[data_bus_length-1:0] fifo[fifo_depth-1:0];
+reg [DATA_WIDTH-1:0] fifo_mem[FIFO_DEPTH-1:0];
 
-reg[address_bus_length:0] wptr,rptr;
-wire[address_bus_length:0] wptr_trans_grey,rptr_recv_grey;
-reg[address_bus_length:0] wptr_metarecv,rptr_metatrans;
-reg[address_bus_length:0] wptr_recv_grey,rptr_trans_grey;
-wire[address_bus_length:0] wptr_recv,rptr_trans;
+reg [ADDR_WIDTH:0] wr_ptr, rd_ptr;
+wire [ADDR_WIDTH:0] wr_ptr_gray_tx, rd_ptr_gray_rx;
+reg [ADDR_WIDTH:0] wr_ptr_meta_rx, rd_ptr_meta_tx;
+reg [ADDR_WIDTH:0] wr_ptr_gray_rx, rd_ptr_gray_tx;
+wire [ADDR_WIDTH:0] wr_ptr_bin_rx, rd_ptr_bin_tx;
 
-
-always@(posedge trans_clk or negedge trans_rst)
+always @(posedge tx_clk or negedge tx_rst_n)
 begin
-if(~trans_rst)
-wptr <=  5'b00000;
-else if((~fifo_full) & write_enable)
-begin
-fifo[wptr[address_bus_length-1:0]] <=  trans_data;
-wptr <=  wptr+1;
-end
-end
-
-assign  recv_data  = fifo[rptr[address_bus_length-1:0]];
-always@(posedge recv_clk or negedge recv_rst)
-begin
-if(~recv_rst)
-rptr <=  5'b00000;
-else if((~fifo_empty) & read_enable)
-rptr <=  rptr+1;
+    if (~tx_rst_n)
+        wr_ptr <= 5'b00000;
+    else if ((~fifo_full_o) & wr_en)
+    begin
+        fifo_mem[wr_ptr[ADDR_WIDTH-1:0]] <= tx_data_i;
+        wr_ptr <= wr_ptr + 1;
+    end
 end
 
-assign  wptr_trans_grey = wptr^(wptr>>1);
-assign  rptr_recv_grey  = rptr^(rptr>>1);
+assign rx_data_o = fifo_mem[rd_ptr[ADDR_WIDTH-1:0]];
 
-always@(posedge trans_clk)
+always @(posedge rx_clk or negedge rx_rst_n)
 begin
-if(~trans_rst)
-begin
-rptr_metatrans <=  5'b00000;
-rptr_trans_grey <=  5'b00000;
-end
-else
-begin
-rptr_metatrans <=  rptr_recv_grey;
-rptr_trans_grey <=  rptr_metatrans;
-end
+    if (~rx_rst_n)
+        rd_ptr <= 5'b00000;
+    else if ((~fifo_empty_o) & rd_en)
+        rd_ptr <= rd_ptr + 1;
 end
 
-always@(posedge recv_clk)
+assign wr_ptr_gray_tx = wr_ptr ^ (wr_ptr >> 1);
+assign rd_ptr_gray_rx = rd_ptr ^ (rd_ptr >> 1);
+
+always @(posedge tx_clk)
 begin
-if(~recv_rst)
-begin
-wptr_metarecv <=  5'b00000;
-wptr_recv_grey <=  5'b00000;
-end
-else
-begin
-wptr_metarecv <=  wptr_trans_grey;
-wptr_recv_grey <=  wptr_metarecv;
-end
+    if (~tx_rst_n)
+    begin
+        rd_ptr_meta_tx <= 5'b00000;
+        rd_ptr_gray_tx <= 5'b00000;
+    end
+    else
+    begin
+        rd_ptr_meta_tx <= rd_ptr_gray_rx;
+        rd_ptr_gray_tx <= rd_ptr_meta_tx;
+    end
 end
 
-assign  wptr_recv  = wptr_recv_grey^(wptr_recv_grey>>1)^(wptr_recv_grey>>2)^(wptr_recv_grey>>3);
-assign  rptr_trans = rptr_trans_grey^(rptr_trans_grey>>1)^(rptr_trans_grey>>2)^(rptr_trans_grey>>3);
+always @(posedge rx_clk)
+begin
+    if (~rx_rst_n)
+    begin
+        wr_ptr_meta_rx <= 5'b00000;
+        wr_ptr_gray_rx <= 5'b00000;
+    end
+    else
+    begin
+        wr_ptr_meta_rx <= wr_ptr_gray_tx;
+        wr_ptr_gray_rx <= wr_ptr_meta_rx;
+    end
+end
 
-assign  fifo_full  = ((wptr[address_bus_length-1:0] == rptr_trans[address_bus_length-1:0]) && (wptr[address_bus_length] ^ rptr_trans[address_bus_length]));
-assign  fifo_empty = ((rptr[address_bus_length-1:0] == wptr_recv[address_bus_length-1:0]) && (~(rptr[address_bus_length]^wptr_recv[address_bus_length])));
+assign wr_ptr_bin_rx = wr_ptr_gray_rx ^ (wr_ptr_gray_rx >> 1) ^ (wr_ptr_gray_rx >> 2) ^ (wr_ptr_gray_rx >> 3);
+assign rd_ptr_bin_tx = rd_ptr_gray_tx ^ (rd_ptr_gray_tx >> 1) ^ (rd_ptr_gray_tx >> 2) ^ (rd_ptr_gray_tx >> 3);
+
+assign fifo_full_o = ((wr_ptr[ADDR_WIDTH-1:0] == rd_ptr_bin_tx[ADDR_WIDTH-1:0]) && (wr_ptr[ADDR_WIDTH] ^ rd_ptr_bin_tx[ADDR_WIDTH]));
+assign fifo_empty_o = ((rd_ptr[ADDR_WIDTH-1:0] == wr_ptr_bin_rx[ADDR_WIDTH-1:0]) && (~(rd_ptr[ADDR_WIDTH] ^ wr_ptr_bin_rx[ADDR_WIDTH])));
 
 endmodule
